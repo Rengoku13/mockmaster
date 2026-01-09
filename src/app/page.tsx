@@ -3,10 +3,13 @@
 import { useState, useEffect } from 'react';
 import { generateData, SchemaField, FieldType } from '@/components/GeneratorEngine';
 import { JsonViewer } from '@/components/JsonViewer';
+import { supabase } from '@/lib/supabaseClient';
+import AuthModal from '@/components/AuthModal';
+import { User } from '@supabase/supabase-js';
 import {
   Plus, Trash2, Download, Play, Copy, RefreshCw, Settings, ChevronDown, ChevronUp,
   Type, Mail, Phone, MapPin, Building2, Calendar, Fingerprint, ToggleLeft, DollarSign, Image, AlignLeft, List,
-  Zap, Database, FileSpreadsheet, Code, Sparkles, ArrowRight
+  Zap, Database, FileSpreadsheet, Code, Sparkles, ArrowRight, Lock
 } from 'lucide-react';
 
 const TYPE_ICONS: Record<FieldType, any> = {
@@ -37,6 +40,24 @@ export default function Home() {
   const [isCopied, setIsCopied] = useState(false);
   const [activeOptionsRow, setActiveOptionsRow] = useState<number | null>(null);
   const [generationTime, setGenerationTime] = useState(0);
+  const [user, setUser] = useState<User | null>(null);
+  const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
+
+  useEffect(() => {
+    // Check active session
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setUser(session?.user ?? null);
+    });
+
+    // Listen for auth changes
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUser(session?.user ?? null);
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
 
   const handleGenerate = () => {
     const start = performance.now();
@@ -82,6 +103,10 @@ export default function Home() {
   };
 
   const downloadCsv = () => {
+    if (!user) {
+      setIsAuthModalOpen(true);
+      return;
+    }
     if (data.length === 0) return;
 
     // Get headers from first object
@@ -118,12 +143,33 @@ export default function Home() {
           </div>
           <div className="flex items-center gap-4">
             <a href="https://github.com/code" target="_blank" className="text-sm text-slate-400 hover:text-white transition">GitHub</a>
-            <button className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-full text-sm font-medium transition shadow-lg shadow-indigo-500/20">
-              Sign In
-            </button>
+            {user ? (
+              <div className="flex items-center gap-3">
+                <span className="text-sm text-slate-400">{user.email}</span>
+                <button
+                  onClick={() => supabase.auth.signOut()}
+                  className="px-4 py-2 border border-slate-700 hover:bg-slate-800 text-white rounded-full text-sm font-medium transition"
+                >
+                  Sign Out
+                </button>
+              </div>
+            ) : (
+              <button
+                onClick={() => setIsAuthModalOpen(true)}
+                className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-full text-sm font-medium transition shadow-lg shadow-indigo-500/20"
+              >
+                Sign In
+              </button>
+            )}
           </div>
         </div>
       </nav>
+
+      <AuthModal
+        isOpen={isAuthModalOpen}
+        onClose={() => setIsAuthModalOpen(false)}
+        onLoginSuccess={(u) => setUser(u)}
+      />
 
       {/* Hero Section */}
       <div className="relative overflow-hidden border-b border-white/5">
@@ -334,7 +380,7 @@ export default function Home() {
                   onClick={downloadCsv}
                   className="flex items-center gap-2 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-medium transition shadow-lg shadow-emerald-500/20"
                 >
-                  <FileSpreadsheet className="w-3 h-3" />
+                  {user ? <FileSpreadsheet className="w-3 h-3" /> : <Lock className="w-3 h-3" />}
                   CSV
                 </button>
               </div>
