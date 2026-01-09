@@ -25,23 +25,32 @@ export default function AuthModal({ isOpen, onClose, onLoginSuccess }: AuthModal
         setError(null);
         setMessage(null);
 
+        console.log('Attempting auth...');
+        console.log('Env URL exists:', !!process.env.NEXT_PUBLIC_SUPABASE_URL);
+
         try {
             if (isLogin) {
                 // Mock Login for Demo (if keys are missing or fails)
                 const isDemo = !process.env.NEXT_PUBLIC_SUPABASE_URL;
 
                 if (isDemo) {
+                    console.log('Running in Demo Mode');
                     await new Promise(resolve => setTimeout(resolve, 1000)); // Fake delay
                     onLoginSuccess?.({ email: email || 'demo@mockmaster.com', id: 'demo-user' });
                     onClose();
                     return;
                 }
 
-                const { error } = await supabase.auth.signInWithPassword({
+                console.log('Calling Supabase SignIn...');
+                const { data, error } = await supabase.auth.signInWithPassword({
                     email,
                     password,
                 });
-                if (error) throw error;
+                if (error) {
+                    console.error('Supabase Error:', error);
+                    throw error;
+                }
+                console.log('Supabase Success:', data);
                 onClose();
             } else {
                 const isDemo = !process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -60,7 +69,8 @@ export default function AuthModal({ isOpen, onClose, onLoginSuccess }: AuthModal
                 setMessage('Check your email for the confirmation link!');
             }
         } catch (err: any) {
-            setError(err.message);
+            console.error('Auth Exception:', err);
+            setError(err.message || 'An error occurred');
         } finally {
             setLoading(false);
         }
